@@ -1,4 +1,4 @@
-import { mapCSVToCRM } from './services/csvMapper';
+import { mapCSVToCRM } from './services/csvMapper.js';
 import dotenv from 'dotenv';
 
 dotenv.config();

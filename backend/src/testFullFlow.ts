@@ -1,4 +1,4 @@
-import { AIExtractor } from './services/aiExtractor';
+import { AIExtractor } from './services/aiExtractor.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
