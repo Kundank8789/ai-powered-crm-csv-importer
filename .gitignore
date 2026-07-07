@@ -1,36 +1,44 @@
-# Create .gitignore file
-echo "# Dependencies" > .gitignore
-echo "node_modules/" >> .gitignore
-echo "package-lock.json" >> .gitignore
-echo "yarn.lock" >> .gitignore
-echo "" >> .gitignore
-echo "# Environment" >> .gitignore
-echo ".env" >> .gitignore
-echo ".env.local" >> .gitignore
-echo ".env.*.local" >> .gitignore
-echo "" >> .gitignore
-echo "# Build" >> .gitignore
-echo "dist/" >> .gitignore
-echo "build/" >> .gitignore
-echo ".next/" >> .gitignore
-echo "out/" >> .gitignore
-echo "" >> .gitignore
-echo "# Uploads" >> .gitignore
-echo "uploads/" >> .gitignore
-echo "*.csv" >> .gitignore
-echo "" >> .gitignore
-echo "# IDE" >> .gitignore
-echo ".vscode/" >> .gitignore
-echo ".idea/" >> .gitignore
-echo "*.swp" >> .gitignore
-echo "*.swo" >> .gitignore
-echo "" >> .gitignore
-echo "# OS" >> .gitignore
-echo ".DS_Store" >> .gitignore
-echo "Thumbs.db" >> .gitignore
-echo "" >> .gitignore
-echo "# Logs" >> .gitignore
-echo "*.log" >> .gitignore
-echo "npm-debug.log*" >> .gitignore
-echo "yarn-debug.log*" >> .gitignore
-echo "yarn-error.log*" >> .gitignore
+# Dependencies
+node_modules/
+npm-debug.log*
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Build folders
+dist/
+build/
+.next/
+out/
+
+# Logs
+logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# VS Code
+.vscode/
+
+# Coverage
+coverage/
+
+# TypeScript
+*.tsbuildinfo
+
+# Uploads
+uploads/
+
+# Railway/Vercel
+.vercel/
+.railway/
+
+# Generated files
+*.tmp
+*.cache
