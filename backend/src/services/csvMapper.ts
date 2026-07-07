@@ -6,26 +6,41 @@ interface ParsedRecord {
 
 export function mapCSVToCRM(records: ParsedRecord[]): { records: CRMRecord[]; skipped: number } {
   console.log('📊 Mapping CSV to CRM format...');
+  
+  // ✅ FIX: Add safety check for undefined/null records
+  if (!records || !Array.isArray(records)) {
+    console.warn('⚠️ No valid records provided');
+    return { records: [], skipped: 0 };
+  }
+  
   console.log(`🔍 Total records: ${records.length}`);
   
   if (records.length > 0) {
-    console.log(`📋 Sample columns: ${Object.keys(records[0]).join(', ')}`);
-    console.log(`📋 Sample data:`, JSON.stringify(records[0], null, 2));
+    console.log(`📋 Sample columns: ${Object.keys(records[0] || {}).join(', ')}`);
+    console.log(`📋 Sample data:`, JSON.stringify(records[0] || {}, null, 2));
   }
   
   const results: CRMRecord[] = [];
   let skipped = 0;
 
   for (let i = 0; i < records.length; i++) {
+    const record = records[i];
+    
+    // ✅ FIX: Skip if record is undefined or null
+    if (!record || typeof record !== 'object') {
+      skipped++;
+      continue;
+    }
+    
     try {
-      const mapped = mapSingleRecord(records[i], i);
+      const mapped = mapSingleRecord(record, i);
       if (mapped) {
         results.push(mapped);
       } else {
         skipped++;
         if (skipped <= 3) {
           console.log(`⚠️ Record ${i + 1} skipped: No email or phone found`);
-          console.log(`   Data:`, JSON.stringify(records[i], null, 2));
+          console.log(`   Data:`, JSON.stringify(record, null, 2));
         }
       }
     } catch (error) {
@@ -39,6 +54,11 @@ export function mapCSVToCRM(records: ParsedRecord[]): { records: CRMRecord[]; sk
 }
 
 function mapSingleRecord(record: ParsedRecord, index: number): CRMRecord | null {
+  // ✅ FIX: Ensure record exists before accessing
+  if (!record || typeof record !== 'object') {
+    return null;
+  }
+  
   // Helper to find values case-insensitively with multiple variations
   const findValue = (keys: string[]): string => {
     // First try exact matches
@@ -305,7 +325,7 @@ function mapSingleRecord(record: ParsedRecord, index: number): CRMRecord | null 
     crm_note: notes || '',
     data_source: '',
     possession_time: '',
-    description: findValue(['description', 'Description', 'additional info'])
+    description: findValue(['description', 'Description', 'additional info']) || ''
   };
 
   return crmRecord;
