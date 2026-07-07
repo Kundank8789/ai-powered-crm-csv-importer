@@ -6,6 +6,9 @@ import DataPreview from '@/components/DataPreview';
 import ResultsTable from '@/components/ResultsTable';
 import LoadingSpinner from '@/components/LoadingSpinner';
 
+// ✅ Use environment variable or fallback to deployed backend
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://ai-powered-crm-csv-importer.onrender.com';
+
 export default function Home() {
   const [step, setStep] = useState<'upload' | 'preview' | 'processing' | 'results'>('upload');
   const [csvData, setCsvData] = useState<any>(null);
@@ -22,7 +25,7 @@ export default function Home() {
     setError(null);
 
     try {
-      const response = await fetch('http://localhost:5000/api/process', {
+      const response = await fetch(`${API_URL}/api/process`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
