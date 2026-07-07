@@ -1,0 +1,36 @@
+# Create .gitignore file
+echo "# Dependencies" > .gitignore
+echo "node_modules/" >> .gitignore
+echo "package-lock.json" >> .gitignore
+echo "yarn.lock" >> .gitignore
+echo "" >> .gitignore
+echo "# Environment" >> .gitignore
+echo ".env" >> .gitignore
+echo ".env.local" >> .gitignore
+echo ".env.*.local" >> .gitignore
+echo "" >> .gitignore
+echo "# Build" >> .gitignore
+echo "dist/" >> .gitignore
+echo "build/" >> .gitignore
+echo ".next/" >> .gitignore
+echo "out/" >> .gitignore
+echo "" >> .gitignore
+echo "# Uploads" >> .gitignore
+echo "uploads/" >> .gitignore
+echo "*.csv" >> .gitignore
+echo "" >> .gitignore
+echo "# IDE" >> .gitignore
+echo ".vscode/" >> .gitignore
+echo ".idea/" >> .gitignore
+echo "*.swp" >> .gitignore
+echo "*.swo" >> .gitignore
+echo "" >> .gitignore
+echo "# OS" >> .gitignore
+echo ".DS_Store" >> .gitignore
+echo "Thumbs.db" >> .gitignore
+echo "" >> .gitignore
+echo "# Logs" >> .gitignore
+echo "*.log" >> .gitignore
+echo "npm-debug.log*" >> .gitignore
+echo "yarn-debug.log*" >> .gitignore
+echo "yarn-error.log*" >> .gitignore
