@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Build folders
+dist/
+build/
+.next/
+out/
+
+# Logs
+logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# VS Code
+.vscode/
+
+# Coverage
+coverage/
+
+# TypeScript
+*.tsbuildinfo
+
+# Uploads
+uploads/
+
+# Railway/Vercel
+.vercel/
+.railway/
+
+# Generated files
+*.tmp
+*.cache
