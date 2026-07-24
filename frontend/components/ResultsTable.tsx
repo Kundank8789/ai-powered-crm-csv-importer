@@ -17,9 +17,9 @@ import {
   Globe,
   Tag,
   FileText,
-  AlertCircle
+  AlertCircle,
+  Hash  // ← Added
 } from 'lucide-react';
-
 interface ResultsTableProps {
   data: any[];
   title?: string;
