@@ -19,7 +19,8 @@ import {
   Shield,
   FileSpreadsheet,
   ArrowLeft,
-  RefreshCw
+  RefreshCw,
+  X  // ✅ Added X icon
 } from 'lucide-react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://ai-powered-crm-csv-importer.onrender.com';
@@ -75,6 +76,14 @@ export default function Home() {
     }
   }, [history]);
 
+  // ✅ Clear history function
+  const clearHistory = () => {
+    if (confirm('Are you sure you want to clear all upload history?')) {
+      setHistory([]);
+      localStorage.removeItem('importHistory');
+    }
+  };
+
   const handleUploadSuccess = (data: any) => {
     setCsvData(data);
     setStep('preview');
@@ -127,7 +136,7 @@ export default function Home() {
     }
   };
 
-  // ✅ UPDATED: Generate fallback suggestions directly (no API call)
+  // ✅ Generate fallback suggestions directly
   const handleReviewMapping = () => {
     console.log('🔍 handleReviewMapping called');
     console.log('📊 csvData:', csvData);
@@ -237,6 +246,7 @@ export default function Home() {
           <>
             <FileUpload onUploadSuccess={handleUploadSuccess} />
             
+            {/* Upload History */}
             {history.length > 0 && (
               <div className="mt-12 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <div className="flex items-center justify-between mb-4">
@@ -247,14 +257,23 @@ export default function Home() {
                       ({history.length} imports)
                     </span>
                   </h3>
-                  {history.length > 5 && (
+                  <div className="flex items-center gap-3">
+                    {history.length > 5 && (
+                      <button
+                        onClick={() => setIsHistoryExpanded(!isHistoryExpanded)}
+                        className="text-sm text-blue-600 hover:text-blue-800 transition-colors"
+                      >
+                        {isHistoryExpanded ? 'Show less' : 'View all'}
+                      </button>
+                    )}
                     <button
-                      onClick={() => setIsHistoryExpanded(!isHistoryExpanded)}
-                      className="text-sm text-blue-600 hover:text-blue-800 transition-colors"
+                      onClick={clearHistory}
+                      className="text-sm text-red-600 hover:text-red-800 transition-colors flex items-center gap-1"
                     >
-                      {isHistoryExpanded ? 'Show less' : 'View all'}
+                      <X className="w-4 h-4" />
+                      Clear all
                     </button>
-                  )}
+                  </div>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">

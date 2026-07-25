@@ -5,7 +5,11 @@ import {
   ArrowLeft, 
   ArrowRight,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Check,
+  RefreshCw,
+  X,
+  Info
 } from 'lucide-react';
 
 interface MappingSuggestion {
@@ -48,6 +52,20 @@ export default function MappingReview({
     return initial;
   });
 
+  const acceptAllSuggestions = () => {
+    const allMapped: Record<string, string> = {};
+    safeSuggestions.forEach(s => {
+      if (s.suggestedField) {
+        allMapped[s.csvColumn] = s.suggestedField;
+      }
+    });
+    setMappings(allMapped);
+  };
+
+  const resetAllMappings = () => {
+    setMappings({});
+  };
+
   if (safeSuggestions.length === 0) {
     return (
       <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-12 text-center">
@@ -77,6 +95,25 @@ export default function MappingReview({
     return 'Low';
   };
 
+  const hasInconsistentData = (suggestion: MappingSuggestion): boolean => {
+    const values = suggestion.sampleValues.filter(v => v && v !== '');
+    if (values.length < 2) return false;
+    const hasPlus = values.some(v => v.includes('+'));
+    const hasNoPlus = values.some(v => v.match(/^\d{10,}$/));
+    return hasPlus && hasNoPlus;
+  };
+
+  const getWarningMessage = (suggestion: MappingSuggestion): string => {
+    const values = suggestion.sampleValues.filter(v => v && v !== '');
+    const hasPlus = values.some(v => v.includes('+'));
+    const hasNoPlus = values.some(v => v.match(/^\d{10,}$/));
+    
+    if (hasPlus && hasNoPlus) {
+      return '⚠️ Inconsistent format: some values include country code (+91), others don\'t. We\'ll normalize by stripping non-numeric characters.';
+    }
+    return '';
+  };
+
   const handleFieldChange = (csvColumn: string, field: string) => {
     setMappings(prev => ({ ...prev, [csvColumn]: field }));
   };
@@ -85,10 +122,19 @@ export default function MappingReview({
   const totalColumns = csvColumns.length;
   const isComplete = mappedCount === totalColumns;
 
-  // Format field name for display
   const formatFieldName = (field: string): string => {
     return field.replace(/_/g, ' ');
   };
+
+  const hasSuggestions = safeSuggestions.some(s => s.suggestedField);
+  const allAccepted = safeSuggestions.every(s => {
+    if (!s.suggestedField) return true;
+    return mappings[s.csvColumn] === s.suggestedField;
+  });
+
+  const hasPhoneWarnings = safeSuggestions.some(s => 
+    s.csvColumn.toLowerCase().includes('phone') && hasInconsistentData(s)
+  );
 
   return (
     <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 animate-fadeIn">
@@ -110,6 +156,46 @@ export default function MappingReview({
           </span>
         </div>
       </div>
+
+      {/* Phone format warning banner */}
+      {hasPhoneWarnings && (
+        <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800 flex items-start gap-2">
+          <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
+          <div>
+            <span className="font-medium">Phone number formatting:</span>
+            <span className="ml-1">We detected mixed formats (with/without country code).</span>
+            <span className="block text-xs text-yellow-700 mt-1">
+              📱 Numbers will be normalized: country codes extracted to "country_code", rest to "mobile_without_country_code".
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Actions Bar */}
+      {hasSuggestions && (
+        <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-sm text-gray-600">
+            <span>⚡ Bulk Actions:</span>
+            <button
+              onClick={acceptAllSuggestions}
+              className="px-3 py-1.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors flex items-center gap-1"
+            >
+              <Check className="w-3.5 h-3.5" />
+              Accept All Suggestions
+            </button>
+            <button
+              onClick={resetAllMappings}
+              className="px-3 py-1.5 text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg transition-colors flex items-center gap-1"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Reset All
+            </button>
+          </div>
+          <div className="text-xs text-gray-400">
+            {allAccepted ? '✅ All suggestions accepted' : `${safeSuggestions.filter(s => s.suggestedField && mappings[s.csvColumn] === s.suggestedField).length} of ${safeSuggestions.filter(s => s.suggestedField).length} suggestions accepted`}
+          </div>
+        </div>
+      )}
 
       {/* Mapping Table */}
       <div className="overflow-x-auto">
@@ -134,11 +220,22 @@ export default function MappingReview({
             {safeSuggestions.map((suggestion) => {
               const currentField = mappings[suggestion.csvColumn] || '';
               const isMapped = Boolean(currentField);
+              const isSuggested = suggestion.suggestedField && currentField === suggestion.suggestedField;
+              const hasIssue = hasInconsistentData(suggestion);
+              const warningMsg = getWarningMessage(suggestion);
               
               return (
                 <tr key={suggestion.csvColumn} className="hover:bg-gray-50/50 transition-colors">
                   <td className="py-3 px-4 font-medium text-gray-800 whitespace-nowrap">
                     {suggestion.csvColumn}
+                    {hasIssue && (
+                      <span 
+                        className="ml-2 text-xs text-yellow-600 cursor-help"
+                        title={warningMsg}
+                      >
+                        ⚠️
+                      </span>
+                    )}
                   </td>
                   <td className="py-3 px-4">
                     <div className="flex items-center gap-2">
@@ -155,7 +252,17 @@ export default function MappingReview({
                           </option>
                         ))}
                       </select>
-                      {suggestion.suggestedField && (
+                      {isSuggested && (
+                        <span className="text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">
+                          ✓ Accepted
+                        </span>
+                      )}
+                      {suggestion.suggestedField && !isSuggested && isMapped && (
+                        <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">
+                          Custom
+                        </span>
+                      )}
+                      {suggestion.suggestedField && !isMapped && (
                         <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">
                           Suggested
                         </span>
@@ -179,7 +286,14 @@ export default function MappingReview({
                   <td className="py-3 px-4">
                     <div className="flex flex-wrap gap-1">
                       {suggestion.sampleValues.slice(0, 3).map((value, i) => (
-                        <span key={i} className="text-xs bg-gray-100 px-2 py-0.5 rounded text-gray-600 truncate max-w-[150px]">
+                        <span 
+                          key={i} 
+                          className={`text-xs px-2 py-0.5 rounded truncate max-w-[150px]
+                            ${hasIssue && value && (value.includes('+') || value.match(/^\d{10,}$/)) 
+                              ? 'bg-yellow-50 text-yellow-700 border border-yellow-200' 
+                              : 'bg-gray-100 text-gray-600'}`}
+                          title={hasIssue && value ? warningMsg : ''}
+                        >
                           {value || '—'}
                         </span>
                       ))}
