@@ -41,7 +41,6 @@ interface MappingSuggestion {
 }
 
 export default function Home() {
-  // ✅ Fixed: Single step state with all possible steps
   const [step, setStep] = useState<'upload' | 'preview' | 'mapping' | 'processing' | 'results'>('upload');
   const [csvData, setCsvData] = useState<any>(null);
   const [results, setResults] = useState<any>(null);
@@ -82,7 +81,7 @@ export default function Home() {
     setError(null);
   };
 
-  // ✅ New: Handle mapping confirmation
+  // ✅ Handle mapping confirmation
   const handleMappingConfirm = async (mappings: Record<string, string>) => {
     setStep('processing');
     setError(null);
@@ -98,7 +97,7 @@ export default function Home() {
         },
         body: JSON.stringify({ 
           records: fullRecords,
-          mappings: mappings // Pass the user's mapping choices
+          mappings: mappings
         }),
       });
 
@@ -128,9 +127,12 @@ export default function Home() {
     }
   };
 
-  // ✅ Updated: Navigate to mapping instead of directly processing
-  const handleConfirmImport = async () => {
-    if (!csvData.preview || csvData.preview.length === 0) {
+  // ✅ UPDATED: Generate fallback suggestions directly (no API call)
+  const handleReviewMapping = () => {
+    console.log('🔍 handleReviewMapping called');
+    console.log('📊 csvData:', csvData);
+    
+    if (!csvData?.preview || csvData.preview.length === 0) {
       setError('No data to import. The CSV file appears to be empty.');
       return;
     }
@@ -138,33 +140,65 @@ export default function Home() {
     setError(null);
     setIsProcessing(true);
 
-    try {
-      // Fetch mapping suggestions from backend
-      const response = await fetch(`${API_URL}/api/suggest-mappings`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          columns: csvData.columns,
-          sampleData: csvData.preview.slice(0, 5)
-        }),
-      });
+    // ✅ Generate suggestions from column names
+    console.log('📝 Generating fallback suggestions...');
+    
+    const fallbackSuggestions = csvData.columns.map((col: string) => {
+      const lower = col.toLowerCase();
+      let suggestedField: string | null = null;
+      let confidence = 0;
 
-      const result = await response.json();
-      
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to generate mapping suggestions');
+      // Simple rule-based mapping
+      if (lower.includes('name') || lower.includes('full')) {
+        suggestedField = 'name';
+        confidence = 85;
+      } else if (lower.includes('email') || lower.includes('mail')) {
+        suggestedField = 'email';
+        confidence = 90;
+      } else if (lower.includes('phone') || lower.includes('mobile') || lower.includes('tel')) {
+        suggestedField = 'mobile_without_country_code';
+        confidence = 80;
+      } else if (lower.includes('company') || lower.includes('organization') || lower.includes('org')) {
+        suggestedField = 'company';
+        confidence = 85;
+      } else if (lower.includes('city') || lower.includes('location')) {
+        suggestedField = 'city';
+        confidence = 80;
+      } else if (lower.includes('state') || lower.includes('region') || lower.includes('province')) {
+        suggestedField = 'state';
+        confidence = 80;
+      } else if (lower.includes('country') || lower.includes('nation')) {
+        suggestedField = 'country';
+        confidence = 85;
+      } else if (lower.includes('status') || lower.includes('stage') || lower.includes('phase')) {
+        suggestedField = 'crm_status';
+        confidence = 75;
+      } else if (lower.includes('note') || lower.includes('remark') || lower.includes('comment')) {
+        suggestedField = 'crm_note';
+        confidence = 80;
+      } else if (lower.includes('date') || lower.includes('created') || lower.includes('timestamp')) {
+        suggestedField = 'created_at';
+        confidence = 85;
+      } else if (lower.includes('source')) {
+        suggestedField = 'data_source';
+        confidence = 70;
+      } else if (lower.includes('owner') || lower.includes('assigned')) {
+        suggestedField = 'lead_owner';
+        confidence = 75;
       }
 
-      setMappingSuggestions(result.suggestions);
-      setStep('mapping');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-      setStep('preview');
-    } finally {
-      setIsProcessing(false);
-    }
+      return {
+        csvColumn: col,
+        suggestedField,
+        confidence,
+        sampleValues: csvData.preview.slice(0, 3).map((row: any) => String(row[col] || ''))
+      };
+    });
+
+    console.log('📝 Fallback suggestions:', fallbackSuggestions);
+    setMappingSuggestions(fallbackSuggestions);
+    setStep('mapping');
+    setIsProcessing(false);
   };
 
   const handleCancelProcessing = () => {
@@ -281,7 +315,7 @@ export default function Home() {
                     </div>
                   )}
                   <button
-                    onClick={handleConfirmImport}
+                    onClick={handleReviewMapping}
                     disabled={!csvData.preview || csvData.preview.length === 0 || isProcessing}
                     className={`px-8 py-3 rounded-lg font-medium transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5 flex items-center gap-2
                       ${csvData.preview && csvData.preview.length > 0 && !isProcessing
@@ -320,8 +354,8 @@ export default function Home() {
           </div>
         )}
 
-        {/* ✅ New: Mapping Review Step */}
-        {step === 'mapping' && csvData && mappingSuggestions.length > 0 && (
+        {/* ✅ Mapping Review Step */}
+        {step === 'mapping' && csvData && mappingSuggestions && mappingSuggestions.length > 0 && (
           <MappingReview
             csvColumns={csvData.columns}
             suggestions={mappingSuggestions}
@@ -329,6 +363,22 @@ export default function Home() {
             onConfirm={handleMappingConfirm}
             isProcessing={isProcessing}
           />
+        )}
+
+        {/* ✅ Loading state for mapping suggestions */}
+        {step === 'mapping' && (!mappingSuggestions || mappingSuggestions.length === 0) && (
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-12 text-center">
+            <div className="flex flex-col items-center">
+              <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+              <p className="mt-4 text-gray-600">Loading mapping suggestions...</p>
+              <button
+                onClick={() => setStep('preview')}
+                className="mt-4 px-6 py-2 text-blue-600 hover:text-blue-800"
+              >
+                ← Go Back
+              </button>
+            </div>
+          </div>
         )}
 
         {/* Processing Step */}

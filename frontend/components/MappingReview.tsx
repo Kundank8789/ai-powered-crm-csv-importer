@@ -2,23 +2,17 @@
 
 import { useState } from 'react';
 import { 
-  CheckCircle, 
-  AlertCircle, 
   ArrowLeft, 
   ArrowRight,
-  ChevronDown,
-  Edit2,
-  HelpCircle,
-  Database,
-  FileSpreadsheet
+  CheckCircle,
+  AlertCircle
 } from 'lucide-react';
 
 interface MappingSuggestion {
   csvColumn: string;
   suggestedField: string | null;
-  confidence: number; // 0-100
+  confidence: number;
   sampleValues: string[];
-  isEditable: boolean;
 }
 
 interface MappingReviewProps {
@@ -29,22 +23,10 @@ interface MappingReviewProps {
   isProcessing?: boolean;
 }
 
-// Available CRM fields (from your schema)
 const CRM_FIELDS = [
-  'name',
-  'email',
-  'country_code',
-  'mobile_without_country_code',
-  'company',
-  'city',
-  'state',
-  'country',
-  'lead_owner',
-  'crm_status',
-  'crm_note',
-  'data_source',
-  'possession_time',
-  'description'
+  'name', 'email', 'country_code', 'mobile_without_country_code',
+  'company', 'city', 'state', 'country', 'lead_owner',
+  'crm_status', 'crm_note', 'data_source', 'possession_time', 'description'
 ];
 
 export default function MappingReview({
@@ -54,10 +36,12 @@ export default function MappingReview({
   onConfirm,
   isProcessing = false
 }: MappingReviewProps) {
+  // ✅ Add safety check for undefined suggestions
+  const safeSuggestions = suggestions || [];
+  
   const [mappings, setMappings] = useState<Record<string, string>>(() => {
-    // Initialize with suggested mappings
     const initial: Record<string, string> = {};
-    suggestions.forEach(s => {
+    safeSuggestions.forEach(s => {
       if (s.suggestedField) {
         initial[s.csvColumn] = s.suggestedField;
       }
@@ -65,46 +49,43 @@ export default function MappingReview({
     return initial;
   });
 
-  const [editingColumn, setEditingColumn] = useState<string | null>(null);
-
-  const getConfidenceColor = (confidence: number): string => {
-    if (confidence >= 80) return 'text-green-600';
-    if (confidence >= 50) return 'text-yellow-600';
-    return 'text-red-600';
+  const getConfidenceBadge = (confidence: number): string => {
+    if (confidence >= 80) return 'bg-green-100 text-green-800';
+    if (confidence >= 50) return 'bg-yellow-100 text-yellow-800';
+    return 'bg-red-100 text-red-800';
   };
 
-  const getConfidenceBadge = (confidence: number): string => {
-    if (confidence >= 80) return 'bg-green-100 text-green-800 border-green-200';
-    if (confidence >= 50) return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-    return 'bg-red-100 text-red-800 border-red-200';
+  const getConfidenceLabel = (confidence: number): string => {
+    if (confidence >= 80) return 'High';
+    if (confidence >= 50) return 'Medium';
+    return 'Low';
   };
 
   const handleFieldChange = (csvColumn: string, field: string) => {
     setMappings(prev => ({ ...prev, [csvColumn]: field }));
-    setEditingColumn(null);
   };
 
-  const getFieldIcon = (field: string): string => {
-    const icons: Record<string, string> = {
-      'name': '👤',
-      'email': '📧',
-      'company': '🏢',
-      'city': '🏙️',
-      'state': '📍',
-      'country': '🌍',
-      'crm_status': '📊',
-      'crm_note': '📝',
-      'created_at': '📅',
-      'mobile_without_country_code': '📱',
-      'country_code': '🌐',
-      'lead_owner': '👨‍💼'
-    };
-    return icons[field] || '📋';
-  };
-
-  const mappedCount = Object.keys(mappings).filter(key => mappings[key]).length;
+  const mappedCount = Object.keys(mappings).filter(key => mappings[key] && mappings[key] !== '').length;
   const totalColumns = csvColumns.length;
   const isComplete = mappedCount === totalColumns;
+
+  // ✅ Show loading state if no suggestions
+  if (!suggestions || suggestions.length === 0) {
+    return (
+      <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-12 text-center">
+        <div className="flex flex-col items-center">
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <p className="mt-4 text-gray-600">Loading mapping suggestions...</p>
+          <button
+            onClick={onBack}
+            className="mt-4 px-6 py-2 text-blue-600 hover:text-blue-800"
+          >
+            ← Go Back
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 animate-fadeIn">
@@ -112,7 +93,7 @@ export default function MappingReview({
       <div className="flex items-start justify-between mb-6 pb-4 border-b border-gray-200">
         <div>
           <h2 className="text-2xl font-semibold text-gray-800 flex items-center gap-2">
-            🔍 Review Field Mapping
+            🤖 Review AI Mapping
           </h2>
           <p className="text-sm text-gray-600 mt-1">
             AI has analyzed your CSV columns and suggested CRM field mappings.
@@ -120,9 +101,7 @@ export default function MappingReview({
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-sm text-gray-500">
-            {mappedCount}/{totalColumns} mapped
-          </span>
+          <span className="text-sm text-gray-500">{mappedCount}/{totalColumns} mapped</span>
           <span className={`px-3 py-1 rounded-full text-xs font-medium ${isComplete ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
             {isComplete ? '✅ Complete' : '⚠️ Incomplete'}
           </span>
@@ -149,7 +128,7 @@ export default function MappingReview({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {suggestions.map((suggestion) => {
+            {safeSuggestions.map((suggestion) => {
               const currentField = mappings[suggestion.csvColumn] || '';
               const isMapped = Boolean(currentField);
               
@@ -160,15 +139,10 @@ export default function MappingReview({
                   </td>
                   <td className="py-3 px-4">
                     <div className="flex items-center gap-2">
-                      {isMapped && (
-                        <span className="text-lg leading-none">
-                          {getFieldIcon(currentField)}
-                        </span>
-                      )}
                       <select
                         value={currentField}
                         onChange={(e) => handleFieldChange(suggestion.csvColumn, e.target.value)}
-                        className={`px-3 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all
+                        className={`px-3 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all min-w-[180px]
                           ${isMapped ? 'border-gray-300 bg-white' : 'border-red-300 bg-red-50'}`}
                       >
                         <option value="">— Select CRM Field —</option>
@@ -179,7 +153,7 @@ export default function MappingReview({
                         ))}
                       </select>
                       {suggestion.suggestedField && (
-                        <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                        <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full whitespace-nowrap">
                           Suggested
                         </span>
                       )}
@@ -191,9 +165,8 @@ export default function MappingReview({
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${getConfidenceBadge(suggestion.confidence)}`}>
                           {suggestion.confidence}%
                         </span>
-                        <span className={`text-xs ${getConfidenceColor(suggestion.confidence)}`}>
-                          {suggestion.confidence >= 80 ? '🟢 High' :
-                           suggestion.confidence >= 50 ? '🟡 Medium' : '🔴 Low'}
+                        <span className="text-xs text-gray-500">
+                          {getConfidenceLabel(suggestion.confidence)}
                         </span>
                       </div>
                     ) : (
@@ -203,7 +176,7 @@ export default function MappingReview({
                   <td className="py-3 px-4">
                     <div className="flex flex-wrap gap-1">
                       {suggestion.sampleValues.slice(0, 3).map((value, i) => (
-                        <span key={i} className="text-xs bg-gray-100 px-2 py-0.5 rounded text-gray-600 truncate max-w-[100px]">
+                        <span key={i} className="text-xs bg-gray-100 px-2 py-0.5 rounded text-gray-600 truncate max-w-[120px]">
                           {value || '—'}
                         </span>
                       ))}
@@ -224,7 +197,7 @@ export default function MappingReview({
         <div className="text-sm text-gray-500">
           💡 {isComplete 
             ? 'All columns mapped. Ready to import!' 
-            : `${totalColumns - mappedCount} columns still need mapping`}
+            : `${totalColumns - mappedCount} column${totalColumns - mappedCount > 1 ? 's' : ''} still need mapping`}
         </div>
         <div className="flex items-center gap-3">
           <button
