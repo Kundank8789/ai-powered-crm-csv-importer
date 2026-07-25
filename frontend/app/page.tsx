@@ -5,6 +5,7 @@ import FileUpload from '@/components/FileUpload';
 import DataPreview from '@/components/DataPreview';
 import ResultsTable from '@/components/ResultsTable';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import MappingReview from '@/components/MappingReview';
 import { 
   BarChart3, 
   CheckCircle, 
@@ -18,7 +19,6 @@ import {
   Shield,
   FileSpreadsheet,
   ArrowLeft,
-  Download,
   RefreshCw
 } from 'lucide-react';
 
@@ -33,14 +33,23 @@ interface ImportHistory {
   totalProcessed: number;
 }
 
+interface MappingSuggestion {
+  csvColumn: string;
+  suggestedField: string | null;
+  confidence: number;
+  sampleValues: string[];
+}
+
 export default function Home() {
-  const [step, setStep] = useState<'upload' | 'preview' | 'processing' | 'results'>('upload');
+  // ✅ Fixed: Single step state with all possible steps
+  const [step, setStep] = useState<'upload' | 'preview' | 'mapping' | 'processing' | 'results'>('upload');
   const [csvData, setCsvData] = useState<any>(null);
   const [results, setResults] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<ImportHistory[]>([]);
   const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [mappingSuggestions, setMappingSuggestions] = useState<MappingSuggestion[]>([]);
 
   // Load history from localStorage on mount
   useEffect(() => {
@@ -48,7 +57,6 @@ export default function Home() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        // Cap history size to prevent unbounded growth (keep last 100)
         if (parsed.length > 100) {
           setHistory(parsed.slice(0, 100));
         } else {
@@ -60,7 +68,7 @@ export default function Home() {
     }
   }, []);
 
-  // Save to localStorage when history updates (cap at 100 entries)
+  // Save to localStorage when history updates
   useEffect(() => {
     if (history.length > 0) {
       const capped = history.length > 100 ? history.slice(0, 100) : history;
@@ -74,19 +82,13 @@ export default function Home() {
     setError(null);
   };
 
-  const handleConfirmImport = async () => {
-    // Guard: empty preview check
-    if (!csvData.preview || csvData.preview.length === 0) {
-      setError('No data to import. The CSV file appears to be empty.');
-      return;
-    }
-
+  // ✅ New: Handle mapping confirmation
+  const handleMappingConfirm = async (mappings: Record<string, string>) => {
     setStep('processing');
     setError(null);
     setIsProcessing(true);
 
     try {
-      // Use the FULL parsed data, not just preview
       const fullRecords = csvData.fullData || csvData.preview;
       
       const response = await fetch(`${API_URL}/api/process`, {
@@ -94,7 +96,10 @@ export default function Home() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ records: fullRecords }),
+        body: JSON.stringify({ 
+          records: fullRecords,
+          mappings: mappings // Pass the user's mapping choices
+        }),
       });
 
       const result = await response.json();
@@ -103,7 +108,6 @@ export default function Home() {
         throw new Error(result.error || 'Processing failed');
       }
 
-      // Save to history with crypto.randomUUID() for uniqueness
       const newEntry: ImportHistory = {
         id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         filename: csvData.filename || 'Unknown file',
@@ -116,6 +120,45 @@ export default function Home() {
 
       setResults(result);
       setStep('results');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+      setStep('preview');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // ✅ Updated: Navigate to mapping instead of directly processing
+  const handleConfirmImport = async () => {
+    if (!csvData.preview || csvData.preview.length === 0) {
+      setError('No data to import. The CSV file appears to be empty.');
+      return;
+    }
+
+    setError(null);
+    setIsProcessing(true);
+
+    try {
+      // Fetch mapping suggestions from backend
+      const response = await fetch(`${API_URL}/api/suggest-mappings`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          columns: csvData.columns,
+          sampleData: csvData.preview.slice(0, 5)
+        }),
+      });
+
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to generate mapping suggestions');
+      }
+
+      setMappingSuggestions(result.suggestions);
+      setStep('mapping');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
       setStep('preview');
@@ -137,7 +180,7 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 py-12 px-4">
       <div className="max-w-7xl mx-auto">
-        {/* Header with Logo */}
+        {/* Header */}
         <div className="text-center mb-12">
           <div className="flex justify-center items-center gap-3 mb-4">
             <FileSpreadsheet className="w-12 h-12 text-blue-600" strokeWidth={1.5} />
@@ -155,11 +198,11 @@ export default function Home() {
           </div>
         </div>
 
+        {/* Upload Step */}
         {step === 'upload' && (
           <>
             <FileUpload onUploadSuccess={handleUploadSuccess} />
             
-            {/* Upload History */}
             {history.length > 0 && (
               <div className="mt-12 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <div className="flex items-center justify-between mb-4">
@@ -215,6 +258,7 @@ export default function Home() {
           </>
         )}
 
+        {/* Preview Step */}
         {step === 'preview' && csvData && (
           <div className="space-y-4 animate-fadeIn">
             <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
@@ -230,7 +274,6 @@ export default function Home() {
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
-                  {/* Error banner inside preview block */}
                   {error && (
                     <div className="flex items-center gap-2 px-4 py-2 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
                       <AlertCircle className="w-4 h-4" />
@@ -239,14 +282,20 @@ export default function Home() {
                   )}
                   <button
                     onClick={handleConfirmImport}
-                    disabled={!csvData.preview || csvData.preview.length === 0}
+                    disabled={!csvData.preview || csvData.preview.length === 0 || isProcessing}
                     className={`px-8 py-3 rounded-lg font-medium transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5 flex items-center gap-2
-                      ${csvData.preview && csvData.preview.length > 0 
+                      ${csvData.preview && csvData.preview.length > 0 && !isProcessing
                         ? 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white' 
                         : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
                   >
-                    <CheckCircle className="w-5 h-5" />
-                    Confirm Import
+                    {isProcessing ? (
+                      <>⏳ Analyzing...</>
+                    ) : (
+                      <>
+                        <CheckCircle className="w-5 h-5" />
+                        Review Mapping
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
@@ -271,6 +320,18 @@ export default function Home() {
           </div>
         )}
 
+        {/* ✅ New: Mapping Review Step */}
+        {step === 'mapping' && csvData && mappingSuggestions.length > 0 && (
+          <MappingReview
+            csvColumns={csvData.columns}
+            suggestions={mappingSuggestions}
+            onBack={() => setStep('preview')}
+            onConfirm={handleMappingConfirm}
+            isProcessing={isProcessing}
+          />
+        )}
+
+        {/* Processing Step */}
         {step === 'processing' && (
           <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-12 relative">
             <LoadingSpinner 
@@ -287,6 +348,7 @@ export default function Home() {
           </div>
         )}
 
+        {/* Results Step */}
         {step === 'results' && results && (
           <div className="space-y-6 animate-fadeIn">
             <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
@@ -340,6 +402,7 @@ export default function Home() {
                 setCsvData(null);
                 setResults(null);
                 setError(null);
+                setMappingSuggestions([]);
               }}
               className="text-blue-600 hover:text-blue-800 hover:underline transition-all duration-200 inline-flex items-center gap-1"
             >
