@@ -1,5 +1,5 @@
 'use client';
-
+export const dynamic = 'force-dynamic';
 import { useState } from 'react';
 import { 
   ArrowLeft, 
@@ -30,13 +30,12 @@ const CRM_FIELDS = [
 ];
 
 export default function MappingReview({
-  csvColumns,
-  suggestions,
+  csvColumns = [],
+  suggestions = [],
   onBack,
   onConfirm,
   isProcessing = false
 }: MappingReviewProps) {
-  // ✅ Add safety check for undefined suggestions
   const safeSuggestions = suggestions || [];
   
   const [mappings, setMappings] = useState<Record<string, string>>(() => {
@@ -48,6 +47,23 @@ export default function MappingReview({
     });
     return initial;
   });
+
+  if (safeSuggestions.length === 0) {
+    return (
+      <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-12 text-center">
+        <div className="flex flex-col items-center">
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <p className="mt-4 text-gray-600">Loading mapping suggestions...</p>
+          <button
+            onClick={onBack}
+            className="mt-4 px-6 py-2 text-blue-600 hover:text-blue-800"
+          >
+            ← Go Back
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const getConfidenceBadge = (confidence: number): string => {
     if (confidence >= 80) return 'bg-green-100 text-green-800';
@@ -69,23 +85,10 @@ export default function MappingReview({
   const totalColumns = csvColumns.length;
   const isComplete = mappedCount === totalColumns;
 
-  // ✅ Show loading state if no suggestions
-  if (!suggestions || suggestions.length === 0) {
-    return (
-      <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-12 text-center">
-        <div className="flex flex-col items-center">
-          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-          <p className="mt-4 text-gray-600">Loading mapping suggestions...</p>
-          <button
-            onClick={onBack}
-            className="mt-4 px-6 py-2 text-blue-600 hover:text-blue-800"
-          >
-            ← Go Back
-          </button>
-        </div>
-      </div>
-    );
-  }
+  // Format field name for display
+  const formatFieldName = (field: string): string => {
+    return field.replace(/_/g, ' ');
+  };
 
   return (
     <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 animate-fadeIn">
@@ -113,16 +116,16 @@ export default function MappingReview({
         <table className="w-full text-sm">
           <thead className="bg-gray-50">
             <tr>
-              <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[120px]">
                 CSV Column
               </th>
-              <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[220px]">
                 CRM Field
               </th>
-              <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[140px]">
                 Confidence
               </th>
-              <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[200px]">
                 Sample Values
               </th>
             </tr>
@@ -134,7 +137,7 @@ export default function MappingReview({
               
               return (
                 <tr key={suggestion.csvColumn} className="hover:bg-gray-50/50 transition-colors">
-                  <td className="py-3 px-4 font-medium text-gray-800">
+                  <td className="py-3 px-4 font-medium text-gray-800 whitespace-nowrap">
                     {suggestion.csvColumn}
                   </td>
                   <td className="py-3 px-4">
@@ -142,18 +145,18 @@ export default function MappingReview({
                       <select
                         value={currentField}
                         onChange={(e) => handleFieldChange(suggestion.csvColumn, e.target.value)}
-                        className={`px-3 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all min-w-[180px]
-                          ${isMapped ? 'border-gray-300 bg-white' : 'border-red-300 bg-red-50'}`}
+                        className={`px-3 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all min-w-[200px] w-full max-w-[280px]
+                          ${isMapped ? 'border-gray-300 bg-white text-gray-800' : 'border-red-300 bg-red-50 text-gray-800'}`}
                       >
                         <option value="">— Select CRM Field —</option>
                         {CRM_FIELDS.map((field) => (
                           <option key={field} value={field}>
-                            {field.replace(/_/g, ' ')}
+                            {formatFieldName(field)}
                           </option>
                         ))}
                       </select>
                       {suggestion.suggestedField && (
-                        <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full whitespace-nowrap">
+                        <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">
                           Suggested
                         </span>
                       )}
@@ -176,7 +179,7 @@ export default function MappingReview({
                   <td className="py-3 px-4">
                     <div className="flex flex-wrap gap-1">
                       {suggestion.sampleValues.slice(0, 3).map((value, i) => (
-                        <span key={i} className="text-xs bg-gray-100 px-2 py-0.5 rounded text-gray-600 truncate max-w-[120px]">
+                        <span key={i} className="text-xs bg-gray-100 px-2 py-0.5 rounded text-gray-600 truncate max-w-[150px]">
                           {value || '—'}
                         </span>
                       ))}
