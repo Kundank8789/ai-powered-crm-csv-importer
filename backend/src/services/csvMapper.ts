@@ -4,13 +4,22 @@ interface ParsedRecord {
   [key: string]: string;
 }
 
-export function mapCSVToCRM(records: ParsedRecord[]): { records: CRMRecord[]; skipped: number } {
+interface SkippedRow {
+  row: ParsedRecord;
+  reason: string;
+}
+
+export function mapCSVToCRM(records: ParsedRecord[]): { 
+  records: CRMRecord[]; 
+  skipped: number;
+  skippedRows: SkippedRow[];
+} {
   console.log('📊 Mapping CSV to CRM format...');
   
   // ✅ FIX: Add safety check for undefined/null records
   if (!records || !Array.isArray(records)) {
     console.warn('⚠️ No valid records provided');
-    return { records: [], skipped: 0 };
+    return { records: [], skipped: 0, skippedRows: [] };
   }
   
   console.log(`🔍 Total records: ${records.length}`);
@@ -21,6 +30,7 @@ export function mapCSVToCRM(records: ParsedRecord[]): { records: CRMRecord[]; sk
   }
   
   const results: CRMRecord[] = [];
+  const skippedRows: SkippedRow[] = [];
   let skipped = 0;
 
   for (let i = 0; i < records.length; i++) {
@@ -29,6 +39,10 @@ export function mapCSVToCRM(records: ParsedRecord[]): { records: CRMRecord[]; sk
     // ✅ FIX: Skip if record is undefined or null
     if (!record || typeof record !== 'object') {
       skipped++;
+      skippedRows.push({
+        row: record || {},
+        reason: 'Invalid record format: record is null or undefined'
+      });
       continue;
     }
     
@@ -37,20 +51,80 @@ export function mapCSVToCRM(records: ParsedRecord[]): { records: CRMRecord[]; sk
       if (mapped) {
         results.push(mapped);
       } else {
+        const reason = getSkipReason(record);
         skipped++;
+        skippedRows.push({ row: record, reason });
         if (skipped <= 3) {
-          console.log(`⚠️ Record ${i + 1} skipped: No email or phone found`);
+          console.log(`⚠️ Record ${i + 1} skipped: ${reason}`);
           console.log(`   Data:`, JSON.stringify(record, null, 2));
         }
       }
     } catch (error) {
       console.warn(`⚠️ Failed to map record ${i + 1}:`, error);
       skipped++;
+      skippedRows.push({
+        row: record,
+        reason: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
+      });
     }
   }
 
   console.log(`✅ Mapped: ${results.length} records, ${skipped} skipped`);
-  return { records: results, skipped };
+  return { records: results, skipped, skippedRows };
+}
+
+// ✅ NEW: Helper function to determine why a record was skipped
+function getSkipReason(record: ParsedRecord): string {
+  // Check if record is empty
+  const hasAnyData = Object.values(record).some(v => v && String(v).trim() !== '');
+  if (!hasAnyData) {
+    return 'Empty record - no data found';
+  }
+
+  // Check for email
+  let hasEmail = false;
+  let hasValidEmail = false;
+  for (const key of Object.keys(record)) {
+    const value = String(record[key]);
+    if (value.includes('@') && value.includes('.') && !value.includes(' ')) {
+      hasEmail = true;
+      // Check if it's a valid email format
+      if (value.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+        hasValidEmail = true;
+        break;
+      }
+    }
+  }
+
+  // Check for phone
+  let hasPhone = false;
+  for (const key of Object.keys(record)) {
+    const value = String(record[key]);
+    const digitsOnly = value.replace(/[^0-9]/g, '');
+    if (digitsOnly.length >= 10) {
+      hasPhone = true;
+      break;
+    }
+  }
+
+  // Determine reason
+  if (!hasEmail && !hasPhone) {
+    return 'Missing required fields: no email address and no phone number found';
+  }
+  
+  if (!hasEmail) {
+    return 'Missing required field: email address not found or invalid format';
+  }
+  
+  if (!hasPhone) {
+    return 'Missing required field: phone number not found';
+  }
+
+  if (hasEmail && !hasValidEmail) {
+    return 'Invalid email format: email found but not in valid format';
+  }
+
+  return 'Unknown reason - record could not be mapped';
 }
 
 function mapSingleRecord(record: ParsedRecord, index: number): CRMRecord | null {

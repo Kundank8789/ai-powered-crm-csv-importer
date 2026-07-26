@@ -49,7 +49,7 @@ export const processCSV = async (req: Request, res: Response) => {
     console.log(`📊 Processing ${records.length} records...`);
     console.log(`📋 Sample record from frontend:`, JSON.stringify(records[0] || {}, null, 2));
     
-    // Use the improved mapper
+    // Use the improved mapper (now returns skippedRows with reasons)
     const result = mapCSVToCRM(records);
 
     res.json({
@@ -58,6 +58,7 @@ export const processCSV = async (req: Request, res: Response) => {
       totalProcessed: records.length,
       totalImported: result.records.length,
       totalSkipped: result.skipped,
+      skippedRows: result.skippedRows || [], // ✅ Now includes skipped rows with reasons
       errors: []
     });
   } catch (error) {
