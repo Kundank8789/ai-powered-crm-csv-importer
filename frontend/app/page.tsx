@@ -6,12 +6,12 @@ import DataPreview from '@/components/DataPreview';
 import ResultsTable from '@/components/ResultsTable';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import MappingReview from '@/components/MappingReview';
-import { 
-  BarChart3, 
-  CheckCircle, 
-  XCircle, 
-  AlertCircle, 
-  Upload, 
+import {
+  BarChart3,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  Upload,
   History,
   Database,
   Zap,
@@ -98,20 +98,20 @@ export default function Home() {
 
     try {
       const fullRecords = csvData.fullData || csvData.preview;
-      
+
       const response = await fetch(`${API_URL}/api/process`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           records: fullRecords,
           mappings: mappings
         }),
       });
 
       const result = await response.json();
-      
+
       if (!result.success) {
         throw new Error(result.error || 'Processing failed');
       }
@@ -140,7 +140,7 @@ export default function Home() {
   const handleReviewMapping = () => {
     console.log('🔍 handleReviewMapping called');
     console.log('📊 csvData:', csvData);
-    
+
     if (!csvData?.preview || csvData.preview.length === 0) {
       setError('No data to import. The CSV file appears to be empty.');
       return;
@@ -151,7 +151,7 @@ export default function Home() {
 
     // ✅ Generate suggestions from column names
     console.log('📝 Generating fallback suggestions...');
-    
+
     const fallbackSuggestions = csvData.columns.map((col: string) => {
       const lower = col.toLowerCase();
       let suggestedField: string | null = null;
@@ -245,7 +245,7 @@ export default function Home() {
         {step === 'upload' && (
           <>
             <FileUpload onUploadSuccess={handleUploadSuccess} />
-            
+
             {/* Upload History */}
             {history.length > 0 && (
               <div className="mt-12 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -322,7 +322,7 @@ export default function Home() {
                     Preview Data
                   </h2>
                   <p className="text-sm text-gray-500">
-                    Total rows: <span className="font-medium text-gray-700">{csvData.totalRows}</span> | 
+                    Total rows: <span className="font-medium text-gray-700">{csvData.totalRows}</span> |
                     Showing first <span className="font-medium text-gray-700">{csvData.preview.length}</span>
                   </p>
                 </div>
@@ -338,7 +338,7 @@ export default function Home() {
                     disabled={!csvData.preview || csvData.preview.length === 0 || isProcessing}
                     className={`px-8 py-3 rounded-lg font-medium transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5 flex items-center gap-2
                       ${csvData.preview && csvData.preview.length > 0 && !isProcessing
-                        ? 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white' 
+                        ? 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white'
                         : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
                   >
                     {isProcessing ? (
@@ -353,8 +353,8 @@ export default function Home() {
                 </div>
               </div>
               {csvData.preview && csvData.preview.length > 0 ? (
-                <DataPreview 
-                  data={csvData.preview} 
+                <DataPreview
+                  data={csvData.preview}
                   columns={csvData.columns}
                 />
               ) : (
@@ -403,8 +403,8 @@ export default function Home() {
         {/* Processing Step */}
         {step === 'processing' && (
           <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-12 relative">
-            <LoadingSpinner 
-              message="Processing CSV with AI..." 
+            <LoadingSpinner
+              message="Processing CSV with AI..."
               subMessage="This may take a few moments depending on file size"
             />
             <button
@@ -417,6 +417,7 @@ export default function Home() {
           </div>
         )}
 
+        {/* Results Step */}
         {/* Results Step */}
         {step === 'results' && results && (
           <div className="space-y-6 animate-fadeIn">
@@ -460,11 +461,15 @@ export default function Home() {
                 </div>
               </div>
             </div>
-            
+
+            {/* ✅ Updated ResultsTable with skippedRows */}
             <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
-              <ResultsTable data={results.records} />
+              <ResultsTable
+                data={results.records || []}
+                skippedRows={results.skippedRows || []}
+              />
             </div>
-            
+
             <button
               onClick={() => {
                 setStep('upload');
@@ -479,6 +484,7 @@ export default function Home() {
             </button>
           </div>
         )}
+
       </div>
     </main>
   );

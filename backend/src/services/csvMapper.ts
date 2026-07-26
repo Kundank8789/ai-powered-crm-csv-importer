@@ -1,4 +1,5 @@
 import { CRMRecord } from '../types/index.js';
+import { parsePhoneNumberFromString, CountryCode } from 'libphonenumber-js';
 
 interface ParsedRecord {
   [key: string]: string;
@@ -9,6 +10,54 @@ interface SkippedRow {
   reason: string;
 }
 
+// ✅ NEW: Proper phone number parsing
+function parsePhoneNumber(phone: string): { countryCode: string; nationalNumber: string } | null {
+  if (!phone) return null;
+  
+  // Clean the phone number - remove spaces, dashes, parentheses
+  const cleaned = phone.replace(/[\s\-\(\)]/g, '');
+  
+  // Try to parse with libphonenumber
+  try {
+    // Try parsing as is
+    let parsed = parsePhoneNumberFromString(cleaned);
+    
+    // If that fails, try with a plus sign
+    if (!parsed && !cleaned.startsWith('+')) {
+      parsed = parsePhoneNumberFromString('+' + cleaned);
+    }
+    
+    // If still failing, try to detect country from the number
+    if (!parsed) {
+      // Try common country codes
+      const commonCodes = ['+91', '+1', '+44', '+61', '+81', '+86', '+49', '+33', '+39', '+55', '+7'];
+      for (const code of commonCodes) {
+        const test = code + cleaned;
+        const testParsed = parsePhoneNumberFromString(test);
+        if (testParsed && testParsed.isValid()) {
+          return {
+            countryCode: code,
+            nationalNumber: testParsed.nationalNumber || cleaned
+          };
+        }
+      }
+      return null;
+    }
+    
+    if (!parsed.isValid()) {
+      return null;
+    }
+    
+    return {
+      countryCode: '+' + parsed.countryCallingCode,
+      nationalNumber: parsed.nationalNumber || cleaned
+    };
+  } catch (error) {
+    console.warn('Phone parsing error for:', phone, error);
+    return null;
+  }
+}
+
 export function mapCSVToCRM(records: ParsedRecord[]): { 
   records: CRMRecord[]; 
   skipped: number;
@@ -16,7 +65,6 @@ export function mapCSVToCRM(records: ParsedRecord[]): {
 } {
   console.log('📊 Mapping CSV to CRM format...');
   
-  // ✅ FIX: Add safety check for undefined/null records
   if (!records || !Array.isArray(records)) {
     console.warn('⚠️ No valid records provided');
     return { records: [], skipped: 0, skippedRows: [] };
@@ -36,7 +84,6 @@ export function mapCSVToCRM(records: ParsedRecord[]): {
   for (let i = 0; i < records.length; i++) {
     const record = records[i];
     
-    // ✅ FIX: Skip if record is undefined or null
     if (!record || typeof record !== 'object') {
       skipped++;
       skippedRows.push({
@@ -54,10 +101,6 @@ export function mapCSVToCRM(records: ParsedRecord[]): {
         const reason = getSkipReason(record);
         skipped++;
         skippedRows.push({ row: record, reason });
-        if (skipped <= 3) {
-          console.log(`⚠️ Record ${i + 1} skipped: ${reason}`);
-          console.log(`   Data:`, JSON.stringify(record, null, 2));
-        }
       }
     } catch (error) {
       console.warn(`⚠️ Failed to map record ${i + 1}:`, error);
@@ -73,22 +116,18 @@ export function mapCSVToCRM(records: ParsedRecord[]): {
   return { records: results, skipped, skippedRows };
 }
 
-// ✅ NEW: Helper function to determine why a record was skipped
 function getSkipReason(record: ParsedRecord): string {
-  // Check if record is empty
   const hasAnyData = Object.values(record).some(v => v && String(v).trim() !== '');
   if (!hasAnyData) {
     return 'Empty record - no data found';
   }
 
-  // Check for email
   let hasEmail = false;
   let hasValidEmail = false;
   for (const key of Object.keys(record)) {
     const value = String(record[key]);
     if (value.includes('@') && value.includes('.') && !value.includes(' ')) {
       hasEmail = true;
-      // Check if it's a valid email format
       if (value.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
         hasValidEmail = true;
         break;
@@ -96,7 +135,6 @@ function getSkipReason(record: ParsedRecord): string {
     }
   }
 
-  // Check for phone
   let hasPhone = false;
   for (const key of Object.keys(record)) {
     const value = String(record[key]);
@@ -107,7 +145,6 @@ function getSkipReason(record: ParsedRecord): string {
     }
   }
 
-  // Determine reason
   if (!hasEmail && !hasPhone) {
     return 'Missing required fields: no email address and no phone number found';
   }
@@ -128,20 +165,16 @@ function getSkipReason(record: ParsedRecord): string {
 }
 
 function mapSingleRecord(record: ParsedRecord, index: number): CRMRecord | null {
-  // ✅ FIX: Ensure record exists before accessing
   if (!record || typeof record !== 'object') {
     return null;
   }
   
-  // Helper to find values case-insensitively with multiple variations
   const findValue = (keys: string[]): string => {
-    // First try exact matches
     for (const key of keys) {
       if (record[key] && String(record[key]).trim() && String(record[key]).trim() !== '') {
         return String(record[key]).trim();
       }
     }
-    // Then try case-insensitive matches
     for (const key of keys) {
       for (const recordKey of Object.keys(record)) {
         if (recordKey.toLowerCase() === key.toLowerCase()) {
@@ -154,7 +187,7 @@ function mapSingleRecord(record: ParsedRecord, index: number): CRMRecord | null 
     return '';
   };
 
-  // Find email - try ALL possible variations
+  // Find email
   let email = findValue([
     'email', 'Email', 'EMAIL', 
     'email address', 'Email Address', 'email_address', 
@@ -166,11 +199,9 @@ function mapSingleRecord(record: ParsedRecord, index: number): CRMRecord | null 
     'user email', 'User Email'
   ]);
   
-  // If not found, search all fields for @ symbol
   if (!email) {
     for (const key of Object.keys(record)) {
       const value = String(record[key]);
-      // Check if it looks like an email
       if (value.includes('@') && value.includes('.') && !value.includes(' ')) {
         email = value;
         break;
@@ -178,7 +209,7 @@ function mapSingleRecord(record: ParsedRecord, index: number): CRMRecord | null 
     }
   }
 
-  // Find mobile/phone - try ALL possible variations
+  // Find mobile/phone
   let mobile = findValue([
     'phone', 'Phone', 'PHONE',
     'mobile', 'Mobile', 'MOBILE',
@@ -193,13 +224,10 @@ function mapSingleRecord(record: ParsedRecord, index: number): CRMRecord | null 
     'whatsapp', 'WhatsApp'
   ]);
   
-  // If not found, search all fields for numbers
   if (!mobile) {
     for (const key of Object.keys(record)) {
       const value = String(record[key]);
-      // Remove all non-digits
       const numbers = value.replace(/[^0-9+]/g, '');
-      // Check if it has at least 10 digits
       const digitsOnly = numbers.replace(/[^0-9]/g, '');
       if (digitsOnly.length >= 10) {
         mobile = value;
@@ -213,32 +241,18 @@ function mapSingleRecord(record: ParsedRecord, index: number): CRMRecord | null 
     return null;
   }
 
-  // Extract country code and clean mobile
+  // ✅ FIXED: Use libphonenumber-js for proper phone parsing
   let countryCode = '';
   let cleanMobile = '';
   
   if (mobile) {
-    // Remove spaces, dashes, parentheses
-    let cleaned = mobile.replace(/[\s\-\(\)]/g, '');
-    
-    // Check for country code
-    const match = cleaned.match(/^\+(\d{1,3})/);
-    if (match) {
-      countryCode = '+' + match[1];
-      cleanMobile = cleaned.replace(/^\+(\d{1,3})/, '');
+    const parsed = parsePhoneNumber(mobile);
+    if (parsed) {
+      countryCode = parsed.countryCode;
+      cleanMobile = parsed.nationalNumber;
     } else {
-      // Check if starts with 00
-      const match00 = cleaned.match(/^00(\d{1,3})/);
-      if (match00) {
-        countryCode = '+' + match00[1];
-        cleanMobile = cleaned.replace(/^00(\d{1,3})/, '');
-      } else {
-        cleanMobile = cleaned.replace(/[^0-9]/g, '');
-        // If it starts with 0, remove it
-        if (cleanMobile.startsWith('0')) {
-          cleanMobile = cleanMobile.substring(1);
-        }
-      }
+      // Fallback: just remove non-digits
+      cleanMobile = mobile.replace(/[^0-9]/g, '');
     }
   }
 
@@ -274,28 +288,21 @@ function mapSingleRecord(record: ParsedRecord, index: number): CRMRecord | null 
   
   if (statusText) {
     const statusLower = statusText.toLowerCase();
-    // Sale done indicators
     if (statusLower.includes('sale') || statusLower.includes('closed') || 
         statusLower.includes('won') || statusLower.includes('done') || 
         statusLower.includes('hot') || statusLower.includes('converted') ||
         statusLower.includes('customer') || statusLower.includes('client')) {
       crmStatus = 'SALE_DONE';
-    } 
-    // Bad lead indicators
-    else if (statusLower.includes('bad') || statusLower.includes('not interested') || 
-             statusLower.includes('reject') || statusLower.includes('cold') ||
-             statusLower.includes('spam') || statusLower.includes('invalid') ||
-             statusLower.includes('unqualified') || statusLower.includes('disqualified')) {
+    } else if (statusLower.includes('bad') || statusLower.includes('not interested') || 
+               statusLower.includes('reject') || statusLower.includes('cold') ||
+               statusLower.includes('spam') || statusLower.includes('invalid') ||
+               statusLower.includes('unqualified') || statusLower.includes('disqualified')) {
       crmStatus = 'BAD_LEAD';
-    } 
-    // Did not connect indicators
-    else if (statusLower.includes('not connect') || statusLower.includes('no answer') || 
-             statusLower.includes('busy') || statusLower.includes('unreachable') ||
-             statusLower.includes('voicemail') || statusLower.includes('no contact')) {
+    } else if (statusLower.includes('not connect') || statusLower.includes('no answer') || 
+               statusLower.includes('busy') || statusLower.includes('unreachable') ||
+               statusLower.includes('voicemail') || statusLower.includes('no contact')) {
       crmStatus = 'DID_NOT_CONNECT';
-    } 
-    // Default to good lead
-    else {
+    } else {
       crmStatus = 'GOOD_LEAD_FOLLOW_UP';
     }
   }
@@ -308,7 +315,6 @@ function mapSingleRecord(record: ParsedRecord, index: number): CRMRecord | null 
   ];
   let notes = findValue(notesFields);
   
-  // If no notes found, combine extra info from unmapped fields
   if (!notes) {
     const extraInfo: string[] = [];
     const mappedKeys = [
@@ -319,7 +325,6 @@ function mapSingleRecord(record: ParsedRecord, index: number): CRMRecord | null 
     
     for (const key of Object.keys(record)) {
       const value = String(record[key]);
-      // Skip if empty or already mapped
       if (!value || value.trim() === '') continue;
       
       const keyLower = key.toLowerCase();
@@ -334,7 +339,7 @@ function mapSingleRecord(record: ParsedRecord, index: number): CRMRecord | null 
     }
   }
 
-  // Find name - try all variations
+  // Find name
   const name = findValue([
     'name', 'Name', 'full name', 'Full Name', 'full_name',
     'first name', 'FirstName', 'first_name',
