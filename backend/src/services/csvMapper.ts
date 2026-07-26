@@ -1,5 +1,5 @@
 import { CRMRecord } from '../types/index.js';
-import { parsePhoneNumberFromString, CountryCode } from 'libphonenumber-js';
+import { parsePhoneNumberFromString } from 'libphonenumber-js';
 
 interface ParsedRecord {
   [key: string]: string;
@@ -10,16 +10,15 @@ interface SkippedRow {
   reason: string;
 }
 
-// ✅ NEW: Proper phone number parsing
+// ✅ FIXED: Proper phone number parsing
 function parsePhoneNumber(phone: string): { countryCode: string; nationalNumber: string } | null {
   if (!phone) return null;
   
-  // Clean the phone number - remove spaces, dashes, parentheses
-  const cleaned = phone.replace(/[\s\-\(\)]/g, '');
-  
-  // Try to parse with libphonenumber
   try {
-    // Try parsing as is
+    // Clean the phone number - remove spaces, dashes, parentheses
+    const cleaned = phone.replace(/[\s\-\(\)]/g, '');
+    
+    // Try to parse with libphonenumber
     let parsed = parsePhoneNumberFromString(cleaned);
     
     // If that fails, try with a plus sign
@@ -27,31 +26,42 @@ function parsePhoneNumber(phone: string): { countryCode: string; nationalNumber:
       parsed = parsePhoneNumberFromString('+' + cleaned);
     }
     
-    // If still failing, try to detect country from the number
-    if (!parsed) {
-      // Try common country codes
-      const commonCodes = ['+91', '+1', '+44', '+61', '+81', '+86', '+49', '+33', '+39', '+55', '+7'];
-      for (const code of commonCodes) {
-        const test = code + cleaned;
-        const testParsed = parsePhoneNumberFromString(test);
-        if (testParsed && testParsed.isValid()) {
-          return {
-            countryCode: code,
-            nationalNumber: testParsed.nationalNumber || cleaned
-          };
-        }
+    if (parsed && parsed.isValid()) {
+      return {
+        countryCode: '+' + parsed.countryCallingCode,
+        nationalNumber: parsed.nationalNumber || cleaned
+      };
+    }
+    
+    // Fallback: manual extraction for common formats
+    // Try to extract country code from +XX or +X format
+    const plusMatch = cleaned.match(/^\+(\d{1,3})/);
+    if (plusMatch) {
+      const countryCode = plusMatch[1];
+      let remaining = cleaned.replace(/^\+(\d{1,3})/, '');
+      
+      // Remove leading zeros
+      remaining = remaining.replace(/^0+/, '');
+      
+      // Only return if we have a valid-looking number
+      if (remaining.length >= 10) {
+        return {
+          countryCode: '+' + countryCode,
+          nationalNumber: remaining
+        };
       }
-      return null;
     }
     
-    if (!parsed.isValid()) {
-      return null;
+    // If no country code found, just clean the number
+    const digitsOnly = cleaned.replace(/[^0-9]/g, '');
+    if (digitsOnly.length >= 10) {
+      return {
+        countryCode: '',
+        nationalNumber: digitsOnly
+      };
     }
     
-    return {
-      countryCode: '+' + parsed.countryCallingCode,
-      nationalNumber: parsed.nationalNumber || cleaned
-    };
+    return null;
   } catch (error) {
     console.warn('Phone parsing error for:', phone, error);
     return null;
@@ -241,7 +251,7 @@ function mapSingleRecord(record: ParsedRecord, index: number): CRMRecord | null 
     return null;
   }
 
-  // ✅ FIXED: Use libphonenumber-js for proper phone parsing
+  // ✅ FIXED: Parse phone number properly
   let countryCode = '';
   let cleanMobile = '';
   

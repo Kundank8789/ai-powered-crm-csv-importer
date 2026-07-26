@@ -30,10 +30,8 @@ export async function suggestMappings(
   apiKey: string
 ): Promise<MappingSuggestion[]> {
   try {
-    // Build a prompt for Gemini
     const prompt = buildMappingPrompt(columns, sampleData);
     
-    // Call Gemini API
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({ 
       model: process.env.AI_MODEL || 'gemini-2.5-flash',
@@ -55,12 +53,10 @@ export async function suggestMappings(
     const response = result.response;
     const text = response.text();
     
-    // Parse the response
     return parseSuggestions(text, columns, sampleData);
     
   } catch (error) {
     console.error('Mapping suggestion error:', error);
-    // Fallback: use rule-based mapping
     return fallbackMapping(columns, sampleData);
   }
 }
@@ -82,9 +78,9 @@ Sample data from each column:
 ${sampleValues}
 
 For each CSV column, suggest the best matching CRM field and provide a confidence score (0-100).
-- Confidence 80-100: Strong match (exact match, clear semantic match)
-- Confidence 50-79: Partial match (related concept, could be a match)
-- Confidence 0-49: Weak match (no clear relationship)
+- Confidence 80-100: Strong match
+- Confidence 50-79: Partial match
+- Confidence 0-49: Weak match
 
 Return ONLY valid JSON in this format:
 {
@@ -99,7 +95,6 @@ Return ONLY valid JSON in this format:
 
 Important: 
 - If no field matches, set suggestedField to null and confidence to 0
-- Be careful with ambiguous fields
 - Consider data types and formats
 - Pay attention to date fields, email fields, phone fields
 - For status fields, consider mapping to crm_status if it looks like lead status`;
@@ -111,7 +106,6 @@ function parseSuggestions(
   sampleData: any[]
 ): MappingSuggestion[] {
   try {
-    // Clean the response
     let cleaned = response.trim();
     cleaned = cleaned.replace(/```(?:json)?\s*/g, '');
     cleaned = cleaned.replace(/```\s*/g, '');
@@ -128,7 +122,6 @@ function parseSuggestions(
       throw new Error('Invalid response format');
     }
 
-    // Map to our format with sample values
     return parsed.suggestions.map((s: any) => ({
       csvColumn: s.csvColumn,
       suggestedField: s.suggestedField || null,
@@ -138,55 +131,53 @@ function parseSuggestions(
     
   } catch (error) {
     console.error('Failed to parse suggestions:', error);
-    // Fallback to rule-based
     return fallbackMapping(columns, sampleData);
   }
 }
 
-function fallbackMapping(columns: string[], sampleData: any[]): MappingSuggestion[] {
-  const sampleValues = sampleData.map(row => 
-    columns.map(col => String(row[col] || '')).slice(0, 3)
-  );
-
-  return columns.map((col, index) => {
+// ✅ EXPORTED: This function can now be imported
+export function fallbackMapping(columns: string[], sampleData: any[]): MappingSuggestion[] {
+  return columns.map((col) => {
     const lower = col.toLowerCase();
     let suggestedField: string | null = null;
     let confidence = 0;
 
-    // Rule-based mapping
     if (lower.includes('name') || lower.includes('full') || lower.includes('person')) {
       suggestedField = 'name';
       confidence = 85;
     } else if (lower.includes('email') || lower.includes('mail')) {
       suggestedField = 'email';
       confidence = 90;
-    } else if (lower.includes('phone') || lower.includes('mobile') || lower.includes('contact')) {
+    } else if (lower.includes('phone') || lower.includes('mobile') || lower.includes('contact') || lower.includes('tel')) {
       suggestedField = 'mobile_without_country_code';
       confidence = 80;
-    } else if (lower.includes('company') || lower.includes('organization') || lower.includes('org')) {
+    } else if (lower.includes('company') || lower.includes('organization') || lower.includes('org') || lower.includes('business')) {
       suggestedField = 'company';
       confidence = 85;
-    } else if (lower.includes('city') || lower.includes('location')) {
+    } else if (lower.includes('city') || lower.includes('location') || lower.includes('town')) {
       suggestedField = 'city';
       confidence = 80;
-    } else if (lower.includes('state') || lower.includes('region') || lower.includes('province')) {
+    } else if (lower.includes('state') || lower.includes('region') || lower.includes('province') || lower.includes('district')) {
       suggestedField = 'state';
       confidence = 80;
-    } else if (lower.includes('country')) {
+    } else if (lower.includes('country') || lower.includes('nation')) {
       suggestedField = 'country';
       confidence = 85;
-    } else if (lower.includes('status') || lower.includes('stage')) {
+    } else if (lower.includes('status') || lower.includes('stage') || lower.includes('phase')) {
       suggestedField = 'crm_status';
       confidence = 75;
-    } else if (lower.includes('note') || lower.includes('remark') || lower.includes('comment')) {
+    } else if (lower.includes('note') || lower.includes('remark') || lower.includes('comment') || lower.includes('description')) {
       suggestedField = 'crm_note';
       confidence = 80;
-    } else if (lower.includes('date') || lower.includes('created') || lower.includes('timestamp')) {
+    } else if (lower.includes('date') || lower.includes('created') || lower.includes('timestamp') || lower.includes('time')) {
       suggestedField = 'created_at';
       confidence = 85;
     } else if (lower.includes('source')) {
       suggestedField = 'data_source';
       confidence = 70;
+    } else if (lower.includes('owner') || lower.includes('assigned') || lower.includes('agent')) {
+      suggestedField = 'lead_owner';
+      confidence = 75;
     }
 
     return {
