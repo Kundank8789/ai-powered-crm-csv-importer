@@ -9,7 +9,8 @@ import {
   File, 
   CheckCircle,
   Loader2,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Sparkles  // ✅ Added for sample button
 } from 'lucide-react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://ai-powered-crm-csv-importer.onrender.com';
@@ -20,12 +21,24 @@ interface FileUploadProps {
   onUploadSuccess: (data: any) => void;
 }
 
+// ✅ Sample CSV data
+const SAMPLE_CSV_DATA = [
+  ['Name', 'Email', 'Phone', 'Company', 'City', 'State', 'Country', 'Notes', 'Status'],
+  ['John Doe', 'john.doe@sample.com', '+1 555-123-4567', 'Sample Corp', 'New York', 'NY', 'USA', 'Interested in demo', 'Hot'],
+  ['Jane Smith', 'jane.smith@sample.com', '+91 9876543210', 'Sample Inc', 'Bangalore', 'Karnataka', 'India', 'Follow up next week', 'New'],
+  ['Bob Wilson', 'bob.wilson@sample.com', '+44 20 7946 0958', 'Wilson & Co', 'London', 'England', 'UK', 'Enterprise plan interest', 'Qualified'],
+  ['Alice Brown', 'alice.brown@sample.com', '+1 555-987-6543', 'Creative Studio', 'Los Angeles', 'CA', 'USA', 'Needs product demo', 'Interested'],
+  ['Charlie Davis', 'charlie.davis@sample.com', '+61 2 9000 1000', 'Data Systems', 'Sydney', 'NSW', 'Australia', 'Implementation questions', 'New'],
+  ['Sarah Lee', 'sarah.lee@sample.com', '+1 555-444-3333', 'Design Haus', 'San Francisco', 'CA', 'USA', 'Ready to onboard', 'SALE_DONE']
+];
+
 export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
+  const [isSampleLoading, setIsSampleLoading] = useState(false); // ✅ New state
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const handleCancelUpload = useCallback(() => {
@@ -47,6 +60,44 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
     setUploadError(null);
     setUploadProgress(0);
   }, [isUploading, handleCancelUpload]);
+
+  // ✅ Load sample CSV
+  const loadSampleCSV = useCallback(async () => {
+    setIsSampleLoading(true);
+    setUploadError(null);
+    
+    try {
+      // Convert sample data to CSV string
+      const csvContent = SAMPLE_CSV_DATA.map(row => row.join(',')).join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const file = new File([blob], 'sample_leads.csv', { type: 'text/csv' });
+      
+      // Simulate upload delay for better UX
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      // Upload the file
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch(`${API_URL}/api/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Upload failed');
+      }
+
+      data.filename = file.name;
+      onUploadSuccess(data);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Failed to load sample CSV');
+    } finally {
+      setIsSampleLoading(false);
+    }
+  }, [onUploadSuccess]);
 
   const onDrop = useCallback(async (acceptedFiles: File[], fileRejections: any[]) => {
     // Handle file rejections
@@ -185,6 +236,30 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
 
   return (
     <div className="max-w-2xl mx-auto">
+      {/* ✅ Sample CSV Button */}
+      <div className="mb-4 text-center">
+        <button
+          onClick={loadSampleCSV}
+          disabled={isSampleLoading || isUploading}
+          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 hover:text-blue-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isSampleLoading ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Loading...
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-4 h-4" />
+              Try with Sample CSV
+            </>
+          )}
+        </button>
+        <p className="text-xs text-gray-400 mt-1">
+          Instantly test with sample lead data
+        </p>
+      </div>
+
       <div
         {...getRootProps()}
         className={`relative border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all duration-300
