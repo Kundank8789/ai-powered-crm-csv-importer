@@ -6,11 +6,11 @@ import {
   Upload, 
   X, 
   AlertCircle, 
-  File, 
+  File as FileIcon,  // ✅ Fixed: renamed to avoid collision
   CheckCircle,
   Loader2,
   FileSpreadsheet,
-  Sparkles  // ✅ Added for sample button
+  Sparkles
 } from 'lucide-react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://ai-powered-crm-csv-importer.onrender.com';
@@ -21,7 +21,7 @@ interface FileUploadProps {
   onUploadSuccess: (data: any) => void;
 }
 
-// ✅ Sample CSV data
+// Sample CSV data
 const SAMPLE_CSV_DATA = [
   ['Name', 'Email', 'Phone', 'Company', 'City', 'State', 'Country', 'Notes', 'Status'],
   ['John Doe', 'john.doe@sample.com', '+1 555-123-4567', 'Sample Corp', 'New York', 'NY', 'USA', 'Interested in demo', 'Hot'],
@@ -38,7 +38,7 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
-  const [isSampleLoading, setIsSampleLoading] = useState(false); // ✅ New state
+  const [isSampleLoading, setIsSampleLoading] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const handleCancelUpload = useCallback(() => {
@@ -61,21 +61,17 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
     setUploadProgress(0);
   }, [isUploading, handleCancelUpload]);
 
-  // ✅ Load sample CSV
   const loadSampleCSV = useCallback(async () => {
     setIsSampleLoading(true);
     setUploadError(null);
     
     try {
-      // Convert sample data to CSV string
       const csvContent = SAMPLE_CSV_DATA.map(row => row.join(',')).join('\n');
       const blob = new Blob([csvContent], { type: 'text/csv' });
       const file = new File([blob], 'sample_leads.csv', { type: 'text/csv' });
       
-      // Simulate upload delay for better UX
       await new Promise(resolve => setTimeout(resolve, 800));
       
-      // Upload the file
       const formData = new FormData();
       formData.append('file', file);
       
@@ -100,7 +96,6 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
   }, [onUploadSuccess]);
 
   const onDrop = useCallback(async (acceptedFiles: File[], fileRejections: any[]) => {
-    // Handle file rejections
     if (fileRejections.length > 0) {
       const rejection = fileRejections[0];
       if (rejection.errors.some((e: any) => e.code === 'file-invalid-type')) {
@@ -116,13 +111,11 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
     const file = acceptedFiles[0];
     if (!file) return;
 
-    // Empty file check
     if (file.size === 0) {
       setUploadError('File is empty. Please select a valid CSV file.');
       return;
     }
 
-    // Size validation
     if (file.size > MAX_FILE_SIZE_BYTES) {
       setUploadError(`File is too large. Maximum size is ${MAX_FILE_SIZE_MB}MB.`);
       return;
@@ -134,14 +127,12 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
     setUploading(true);
     setUploadProgress(0);
 
-    // Create AbortController for cancel
     abortControllerRef.current = new AbortController();
 
     const formData = new FormData();
     formData.append('file', file);
 
     try {
-      // Use XMLHttpRequest for real progress tracking
       const uploadPromise = new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         
@@ -210,7 +201,6 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
     getInputProps, 
     isDragActive, 
     isDragReject,
-    isDragAccept 
   } = useDropzone({
     onDrop,
     accept: { 'text/csv': ['.csv'] },
@@ -226,7 +216,6 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
-  // Determine dropzone border color
   const getBorderColor = () => {
     if (isDragReject) return 'border-red-500 bg-red-50/30';
     if (isDragActive) return 'border-blue-500 bg-blue-50';
@@ -236,7 +225,7 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
 
   return (
     <div className="max-w-2xl mx-auto">
-      {/* ✅ Sample CSV Button */}
+      {/* Sample CSV Button */}
       <div className="mb-4 text-center">
         <button
           onClick={loadSampleCSV}
@@ -272,7 +261,6 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
         <input {...getInputProps()} disabled={isUploading} />
         
         <div className="space-y-4">
-          {/* Icon */}
           <div className={`flex justify-center transition-transform duration-300 ${isDragActive ? 'scale-110' : ''}`}>
             {isUploading ? (
               <Loader2 className="h-16 w-16 text-blue-500 animate-spin" strokeWidth={1.5} />
@@ -283,7 +271,6 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
             )}
           </div>
           
-          {/* Text */}
           <div>
             <p className={`text-xl font-medium transition-colors duration-300 ${isDragActive ? 'text-blue-600' : 'text-gray-700'}`}>
               {isDragReject ? '❌ Invalid file type' :
@@ -297,7 +284,6 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
             </p>
           </div>
           
-          {/* File info with remove button */}
           {selectedFile && !isUploading && !uploadError && (
             <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700 animate-fadeIn">
               <div className="flex items-center justify-between">
@@ -320,12 +306,11 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
             </div>
           )}
 
-          {/* Upload progress with real percentage */}
           {isUploading && (
             <div className="mt-4 space-y-2 animate-fadeIn">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-gray-600 flex items-center gap-2">
-                  <File className="w-4 h-4" />
+                  <FileIcon className="w-4 h-4" />  {/* ✅ Fixed: Using FileIcon */}
                   Uploading {selectedFile?.name}
                 </span>
                 <span className="text-blue-600 font-medium">{uploadProgress}%</span>
@@ -350,7 +335,6 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
             </div>
           )}
 
-          {/* Supported formats */}
           <p className="text-xs text-gray-400 flex items-center justify-center gap-1">
             <FileSpreadsheet className="w-3 h-3" />
             Supports: .csv files only
@@ -360,7 +344,6 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
         </div>
       </div>
 
-      {/* Error message with dismiss */}
       {uploadError && (
         <div className="mt-4 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg animate-fadeIn flex items-start gap-3">
           <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
@@ -378,7 +361,6 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
         </div>
       )}
 
-      {/* Tips */}
       <div className="mt-4 flex flex-wrap justify-center gap-3 text-xs text-gray-400">
         <span>💡 CSV files only</span>
         <span>•</span>
