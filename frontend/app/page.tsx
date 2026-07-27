@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import FileUpload from '@/components/FileUpload';
 import DataPreview from '@/components/DataPreview';
 import ResultsTable from '@/components/ResultsTable';
+import SkippedRowsTable from '@/components/SkippedRowsTable';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import MappingReview from '@/components/MappingReview';
 import {
@@ -20,7 +21,7 @@ import {
   FileSpreadsheet,
   ArrowLeft,
   RefreshCw,
-  X  // ✅ Added X icon
+  X
 } from 'lucide-react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://ai-powered-crm-csv-importer.onrender.com';
@@ -46,6 +47,7 @@ export default function Home() {
   const [csvData, setCsvData] = useState<any>(null);
   const [results, setResults] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [resultsTab, setResultsTab] = useState<'imported' | 'skipped'>('imported');
   const [history, setHistory] = useState<ImportHistory[]>([]);
   const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -76,7 +78,6 @@ export default function Home() {
     }
   }, [history]);
 
-  // ✅ Clear history function
   const clearHistory = () => {
     if (confirm('Are you sure you want to clear all upload history?')) {
       setHistory([]);
@@ -90,7 +91,6 @@ export default function Home() {
     setError(null);
   };
 
-  // ✅ Handle mapping confirmation
   const handleMappingConfirm = async (mappings: Record<string, string>) => {
     setStep('processing');
     setError(null);
@@ -136,7 +136,6 @@ export default function Home() {
     }
   };
 
-  // ✅ Generate fallback suggestions directly
   const handleReviewMapping = () => {
     console.log('🔍 handleReviewMapping called');
     console.log('📊 csvData:', csvData);
@@ -149,7 +148,6 @@ export default function Home() {
     setError(null);
     setIsProcessing(true);
 
-    // ✅ Generate suggestions from column names
     console.log('📝 Generating fallback suggestions...');
 
     const fallbackSuggestions = csvData.columns.map((col: string) => {
@@ -157,7 +155,6 @@ export default function Home() {
       let suggestedField: string | null = null;
       let confidence = 0;
 
-      // Simple rule-based mapping
       if (lower.includes('name') || lower.includes('full')) {
         suggestedField = 'name';
         confidence = 85;
@@ -246,7 +243,6 @@ export default function Home() {
           <>
             <FileUpload onUploadSuccess={handleUploadSuccess} />
 
-            {/* Upload History */}
             {history.length > 0 && (
               <div className="mt-12 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <div className="flex items-center justify-between mb-4">
@@ -373,7 +369,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* ✅ Mapping Review Step */}
+        {/* Mapping Review Step */}
         {step === 'mapping' && csvData && mappingSuggestions && mappingSuggestions.length > 0 && (
           <MappingReview
             csvColumns={csvData.columns}
@@ -384,7 +380,6 @@ export default function Home() {
           />
         )}
 
-        {/* ✅ Loading state for mapping suggestions */}
         {step === 'mapping' && (!mappingSuggestions || mappingSuggestions.length === 0) && (
           <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-12 text-center">
             <div className="flex flex-col items-center">
@@ -417,8 +412,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* Results Step */}
-        {/* Results Step */}
+        {/* Results Step with Tab Toggle */}
         {step === 'results' && results && (
           <div className="space-y-6 animate-fadeIn">
             <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
@@ -462,13 +456,41 @@ export default function Home() {
               </div>
             </div>
 
-            {/* ✅ Updated ResultsTable with skippedRows */}
-            <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
-              <ResultsTable
-                data={results.records || []}
-                skippedRows={results.skippedRows || []}
-              />
+            {/* ✅ Tab Toggle */}
+            <div className="flex gap-2 mb-4">
+              <button
+                onClick={() => setResultsTab('imported')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  resultsTab === 'imported' 
+                    ? 'bg-blue-600 text-white' 
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                ✅ Imported ({results.totalImported || 0})
+              </button>
+              <button
+                onClick={() => setResultsTab('skipped')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  resultsTab === 'skipped' 
+                    ? 'bg-red-600 text-white' 
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                ⚠️ Skipped ({results.totalSkipped || 0})
+              </button>
             </div>
+
+            {/* ✅ Results Table or Skipped Rows Table */}
+            {resultsTab === 'imported' ? (
+              <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
+                <ResultsTable 
+                  data={results.records || []}
+                  skippedRows={results.skippedRows || []}
+                />
+              </div>
+            ) : (
+              <SkippedRowsTable data={results.skippedRows || []} />
+            )}
 
             <button
               onClick={() => {
@@ -484,7 +506,6 @@ export default function Home() {
             </button>
           </div>
         )}
-
       </div>
     </main>
   );

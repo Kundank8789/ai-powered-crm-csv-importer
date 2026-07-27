@@ -1,0 +1,8 @@
+Name,Email,Phone,Company,City,State,Country,Notes,Status
+John Doe,john.doe@example.com,+91 9876543210,Tech Solutions,Mumbai,Maharashtra,India,Working,Hot
+Sarah Johnson,sarah.j@company.com,9876543211,Business Corp,Bangalore,Karnataka,India,Working,New
+Test Broken,not-an-email,,Test Co,Test City,Test State,India,Bad email no phone,New
+Test Email Only,test@example.com,,Test Co2,Test City2,Test State2,India,Has email but no phone,Qualified
+Test Phone Only,,+1 555-123-4567,Test Co3,Test City3,Test State3,India,Has phone but no email,Interested
+Test Invalid Email,invalid@email,9876543212,Test Co4,Test City4,Test State4,India,Invalid email format,Hot
+Mike Wilson,mike.w@tech.com,+1 555-123-4567,Global Tech,New York,NY,USA,Check phone,Qualified

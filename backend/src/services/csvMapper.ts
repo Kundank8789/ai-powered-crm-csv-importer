@@ -10,7 +10,7 @@ interface SkippedRow {
   reason: string;
 }
 
-// ✅ FIXED: Proper phone number parsing
+// ✅ FIXED: Proper phone number parsing with US support
 function parsePhoneNumber(phone: string): { countryCode: string; nationalNumber: string } | null {
   if (!phone) return null;
   
@@ -33,27 +33,14 @@ function parsePhoneNumber(phone: string): { countryCode: string; nationalNumber:
       };
     }
     
-    // Fallback: manual extraction for common formats
-    // Try to extract country code from +XX or +X format
-    const plusMatch = cleaned.match(/^\+(\d{1,3})/);
-    if (plusMatch) {
-      const countryCode = plusMatch[1];
-      let remaining = cleaned.replace(/^\+(\d{1,3})/, '');
-      
-      // Remove leading zeros
-      remaining = remaining.replace(/^0+/, '');
-      
-      // Only return if we have a valid-looking number
-      if (remaining.length >= 10) {
-        return {
-          countryCode: '+' + countryCode,
-          nationalNumber: remaining
-        };
-      }
-    }
-    
-    // If no country code found, just clean the number
+    // ✅ FIX: Handle 11-digit US/Canada numbers starting with 1, even without a leading +
     const digitsOnly = cleaned.replace(/[^0-9]/g, '');
+    if (digitsOnly.length === 11 && digitsOnly.startsWith('1')) {
+      return {
+        countryCode: '+1',
+        nationalNumber: digitsOnly.slice(1)
+      };
+    }
     if (digitsOnly.length >= 10) {
       return {
         countryCode: '',
@@ -134,11 +121,20 @@ function getSkipReason(record: ParsedRecord): string {
 
   let hasEmail = false;
   let hasValidEmail = false;
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  
   for (const key of Object.keys(record)) {
-    const value = String(record[key]);
-    if (value.includes('@') && value.includes('.') && !value.includes(' ')) {
+    const value = String(record[key]).trim();
+    if (value && emailRegex.test(value)) {
       hasEmail = true;
-      if (value.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+      hasValidEmail = true;
+      break;
+    }
+    // Also check if it looks like an email with @ and dot
+    if (value.includes('@') && value.includes('.')) {
+      hasEmail = true;
+      // Check if it's a valid format
+      if (emailRegex.test(value)) {
         hasValidEmail = true;
         break;
       }
@@ -148,7 +144,9 @@ function getSkipReason(record: ParsedRecord): string {
   let hasPhone = false;
   for (const key of Object.keys(record)) {
     const value = String(record[key]);
-    const digitsOnly = value.replace(/[^0-9]/g, '');
+    // Remove all non-digit characters except +
+    const cleaned = value.replace(/[^0-9+]/g, '');
+    const digitsOnly = cleaned.replace(/[^0-9]/g, '');
     if (digitsOnly.length >= 10) {
       hasPhone = true;
       break;
@@ -156,19 +154,19 @@ function getSkipReason(record: ParsedRecord): string {
   }
 
   if (!hasEmail && !hasPhone) {
-    return 'Missing required fields: no email address and no phone number found';
+    return 'Missing required fields: no valid email address and no phone number found';
   }
   
   if (!hasEmail) {
-    return 'Missing required field: email address not found or invalid format';
+    return 'Missing required field: valid email address not found';
+  }
+  
+  if (!hasValidEmail) {
+    return 'Invalid email format: email found but not in a valid format';
   }
   
   if (!hasPhone) {
     return 'Missing required field: phone number not found';
-  }
-
-  if (hasEmail && !hasValidEmail) {
-    return 'Invalid email format: email found but not in valid format';
   }
 
   return 'Unknown reason - record could not be mapped';
@@ -246,12 +244,18 @@ function mapSingleRecord(record: ParsedRecord, index: number): CRMRecord | null 
     }
   }
 
-  // Skip if no email and no mobile
+  // ✅ FIX: Validate email format - treat invalid emails as absent
+  const isValidEmail = email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  if (!isValidEmail) {
+    email = '';
+  }
+
+  // ✅ FIX: Skip if no valid email and no mobile
   if (!email && !mobile) {
     return null;
   }
 
-  // ✅ FIXED: Parse phone number properly
+  // Parse phone number
   let countryCode = '';
   let cleanMobile = '';
   
