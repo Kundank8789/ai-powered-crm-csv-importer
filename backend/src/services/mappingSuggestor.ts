@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import Groq from 'groq-sdk';
 
 const CRM_FIELDS = [
   'name',
@@ -30,33 +30,32 @@ export async function suggestMappings(
   apiKey: string
 ): Promise<MappingSuggestion[]> {
   try {
+    console.log('🤖 Calling Groq for mapping suggestions...');
+    
+    const groq = new Groq({ apiKey });
+    
     const prompt = buildMappingPrompt(columns, sampleData);
     
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ 
-      model: process.env.AI_MODEL || 'gemini-2.5-flash',
-      generationConfig: {
-        temperature: 0.1,
-        maxOutputTokens: 2048,
-      },
-    });
-
-    const result = await model.generateContent({
-      contents: [
+    const response = await groq.chat.completions.create({
+      model: process.env.AI_MODEL || 'llama3-8b-8192',
+      messages: [
         { 
-          role: 'user', 
-          parts: [{ text: prompt }] 
-        }
+          role: 'system', 
+          content: 'You are a CSV field mapping expert. Return ONLY valid JSON. Do not add any text before or after the JSON.'
+        },
+        { role: 'user', content: prompt }
       ],
+      temperature: 0.1,
+      max_tokens: 2048,
     });
 
-    const response = result.response;
-    const text = response.text();
+    const text = response.choices[0]?.message?.content || '';
+    console.log('✅ Groq response received');
     
     return parseSuggestions(text, columns, sampleData);
     
   } catch (error) {
-    console.error('Mapping suggestion error:', error);
+    console.error('❌ Groq error:', error);
     return fallbackMapping(columns, sampleData);
   }
 }
@@ -135,7 +134,6 @@ function parseSuggestions(
   }
 }
 
-// ✅ EXPORTED: This function can now be imported
 export function fallbackMapping(columns: string[], sampleData: any[]): MappingSuggestion[] {
   return columns.map((col) => {
     const lower = col.toLowerCase();

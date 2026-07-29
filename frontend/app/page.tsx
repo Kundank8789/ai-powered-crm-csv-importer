@@ -25,7 +25,6 @@ import {
 } from 'lucide-react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://ai-powered-crm-csv-importer.onrender.com';
-
 interface ImportHistory {
   id: string;
   filename: string;
